@@ -1,0 +1,84 @@
+name: Build Wails App
+
+on:
+  push:
+    tags:
+      - 'v*' # Trigger on version tags
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  build:
+    permissions:
+      contents: write
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: windows/amd64
+            archive-name: rclone-studio-windows-amd64.zip
+          - os: ubuntu-latest
+            platform: linux/amd64
+            archive-name: rclone-studio-linux-amd64.tar.gz
+          - os: macos-latest
+            platform: darwin/universal
+            archive-name: rclone-studio-macos-universal.zip
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.0'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Linux Dependencies
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev pkg-config
+
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+      - name: Build Application
+        run: wails build -platform ${{ matrix.platform }} -m -clean
+
+      - name: Package Windows
+        if: matrix.os == 'windows-latest'
+        run: |
+          Compress-Archive -Path build\bin\rclone-studio.exe -DestinationPath ${{ matrix.archive-name }}
+        shell: powershell
+
+      - name: Package Linux
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          cd build/bin
+          tar -czvf ../../${{ matrix.archive-name }} rclone-studio
+
+      - name: Package macOS
+        if: matrix.os == 'macos-latest'
+        run: |
+          cd build/bin
+          zip -r ../../${{ matrix.archive-name }} rclone-studio.app
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.archive-name }}
+          path: ${{ matrix.archive-name }}
+          retention-days: 7
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: ${{ matrix.archive-name }}
