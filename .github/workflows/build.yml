@@ -19,12 +19,15 @@ jobs:
           - os: windows-latest
             platform: windows/amd64
             archive-name: rclone-studio-windows-amd64.zip
+            build-tags: ""
           - os: ubuntu-latest
             platform: linux/amd64
             archive-name: rclone-studio-linux-amd64.tar.gz
+            build-tags: "-tags webkit2_41"
           - os: macos-latest
             platform: darwin/universal
             archive-name: rclone-studio-macos-universal.zip
+            build-tags: ""
 
     steps:
       - name: Checkout code
@@ -50,7 +53,7 @@ jobs:
         run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
 
       - name: Build Application
-        run: wails build -platform ${{ matrix.platform }} -m -clean
+        run: wails build -platform ${{ matrix.platform }} ${{ matrix.build-tags }} -m -clean
 
       - name: Package Windows
         if: matrix.os == 'windows-latest'
